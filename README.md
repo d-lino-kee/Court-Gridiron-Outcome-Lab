@@ -1,1 +1,1 @@
-# Court-Gridiron-Outcome-Lab
+# Court-Gridiron-Outcome
