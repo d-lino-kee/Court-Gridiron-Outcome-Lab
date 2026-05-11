@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 from typing import List
 
+import joblib
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as conv_transpose
+import matplotlib.pyplot as plt
 
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, StratifiedKFold, RandomizedSearchCV, GridSearchCV
@@ -30,7 +31,9 @@ try:
 except Exception:
     _HAS_XGB = False
 
-from src.features import build_preprocess_pipeline
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from features import build_preprocess_pipeline
 
 def save_confusion_matrix(cm: np.ndarray, classes: list, outpath: Path):
     plt.figure(figsize=(5,4))
@@ -40,12 +43,12 @@ def save_confusion_matrix(cm: np.ndarray, classes: list, outpath: Path):
     tick_marks = np.arange(len(classes))
     plt.xticks(tick_marks, classes, rotation=45)
     plt.yticks(tick_marks, classes)
-    thresh = cm.max() / 2,
+    thresh = cm.max() / 2
     for i, j in np.ndindex(cm.shape):
         plt.text(j, i, format(cm[i, j], 'd'),
                 horizontalalignment="center",
                 color="white" if cm[i, j] > thresh else "black")
-        plt.ylabel('True label')
+    plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
     plt.savefig(outpath)
@@ -103,10 +106,9 @@ def build_models(random_state: int = 42):
     }
     if _HAS_XGB:
         xgb = XGBClassifier(
-            objective = "binary:logistic",
+            objective="binary:logistic",
             tree_method="hist",
             eval_metric="logloss",
-            use_label_encoder=False,
             random_state=random_state,
         )
         models["xgb"] = {
@@ -129,7 +131,7 @@ def run(input_csv: str, models_to_run: list, out_reports: str, out_plots: str, c
     if "home_win" not in df.columns:
         raise SystemExit("Input must include a 'home_win' column.")
     y = df["home_win"].astype(int).values
-    x = df.drop(columns=["home_win"])
+    X = df.drop(columns=["home_win"])
     preprocessor, _ = build_preprocess_pipeline(df)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=random_state)
     models = build_models(random_state = random_state)
@@ -175,7 +177,7 @@ def main():
     parser.add_argument("--scoring", type=str, default="f1", help="sklearn scoring metric (e.g., f1, average_precision)")
     parser.add_argument("--n_iter", type=int, default=25, help="RandomizedSearch iterations (if applicable)")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed")
-    args = parser.parse_args
+    args = parser.parse_args()
     run(args.input, args.models, args.reports, args.plots, args.cv, args.scoring, args.n_iter, args.random_state)
 
 if __name__ == "__main__":

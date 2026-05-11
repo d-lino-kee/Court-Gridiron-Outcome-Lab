@@ -14,6 +14,7 @@ def select_feature_columns(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     numeric_cols = [c for c in numeric_cols if c not in EXCLUDE_COLUMNS]
     categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+    categorical_cols = [c for c in categorical_cols if c not in EXCLUDE_COLUMNS]
     return numeric_cols, categorical_cols
 
 def build_preprocess_pipeline(df: pd.DataFrame) -> Tuple[ColumnTransformer, List[str]]:

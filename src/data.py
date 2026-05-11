@@ -140,7 +140,7 @@ def generate_synthetic_nfl_games(n=4000, seed=21):
     home_win = rng.binomial(1, p_home_win)
     seasons = rng.integers(2014, 2025, size=n)
     dates = pd.to_datetime(
-        rng.integers(pd.Timestamp("2014-09-01").value//10**9, pd.Timestamp("2024-02-15").value//10**9, size=n)
+        rng.integers(pd.Timestamp("2014-09-01").value//10**9, pd.Timestamp("2024-02-15").value//10**9, size=n),
         unit = "s"
     )
     game_id = np.arange(1, n + 1)
@@ -160,7 +160,7 @@ def generate_synthetic_nfl_games(n=4000, seed=21):
         "away_rush_def": away_rush_def,
         "home_pass_off": home_pass_off,
         "away_pass_off": away_pass_off,
-        "home_pass_def": away_pass_def,
+        "home_pass_def": home_pass_def,
         "away_pass_def": away_pass_def,
         "home_rest": home_rest,
         "away_rest": away_rest,
