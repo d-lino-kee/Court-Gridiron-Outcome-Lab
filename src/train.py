@@ -124,9 +124,20 @@ def build_models(random_state: int = 42):
         }
     return models
 
-def run(input_csv: str, models_to_run: list, out_reports: str, out_plots: str, cv: int, scoring: str, n_iter: int, random_state: int):
-    out_reports = Path(out_reports); out_reports.mkdir(parents=True, exist_ok = True)
-    out_plots = Path(out_plots); out_plots.mkdir(parents=True, exist_ok = True)
+def detect_sport(input_csv: str) -> str:
+    name = Path(input_csv).stem.lower()
+    if "nfl" in name:
+        return "nfl"
+    if "nba" in name:
+        return "nba"
+    return "unknown"
+
+def run(input_csv: str, models_to_run: list, out_reports: str, out_plots: str, out_models: str,
+        cv: int, scoring: str, n_iter: int, random_state: int):
+    out_reports = Path(out_reports); out_reports.mkdir(parents=True, exist_ok=True)
+    out_plots = Path(out_plots); out_plots.mkdir(parents=True, exist_ok=True)
+    out_models = Path(out_models); out_models.mkdir(parents=True, exist_ok=True)
+    sport = detect_sport(input_csv)
     df = pd.read_csv(input_csv)
     if "home_win" not in df.columns:
         raise SystemExit("Input must include a 'home_win' column.")
@@ -134,51 +145,69 @@ def run(input_csv: str, models_to_run: list, out_reports: str, out_plots: str, c
     X = df.drop(columns=["home_win"])
     preprocessor, _ = build_preprocess_pipeline(df)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=random_state)
-    models = build_models(random_state = random_state)
+    models = build_models(random_state=random_state)
+    summary = {}
     for key in models_to_run:
         if key not in models:
-            print(f"Skipping unknown model '{key}'");
+            print(f"Skipping unknown model '{key}'")
             continue
         est = models[key]["estimator"]
         param_grid = models[key]["param_grid"]
         search_type = models[key]["search"]
         pipe = Pipeline(steps=[("prep", preprocessor), ("clf", est)])
         if search_type == "grid":
-            search = GridSearchCV(pipe, param_grid = param_grid, cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state), 
-                                  scoring = scoring, n_jobs = -1, verbose = 1, refit = True)
+            search = GridSearchCV(pipe, param_grid=param_grid,
+                                  cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state),
+                                  scoring=scoring, n_jobs=-1, verbose=1, refit=True)
         else:
-            search = RandomizedSearchCV(pipe, param_distributions = param_grid, n_iter = n_iter,
-                                        cv = StratifiedKFold(n_splits = cv, shuffle = True, random_state = random_state),
-                                        scoring = scoring, n_jobs = -1, verbose = 1, refit = True, random_state = random_state)
-        print(f"\n=== Training {key.upper()} with CV = {cv}, scoring = {scoring} ===")
+            search = RandomizedSearchCV(pipe, param_distributions=param_grid, n_iter=n_iter,
+                                        cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state),
+                                        scoring=scoring, n_jobs=-1, verbose=1, refit=True, random_state=random_state)
+        print(f"\n=== Training {sport.upper()} / {key.upper()} with CV={cv}, scoring={scoring} ===")
         search.fit(X_train, y_train)
         best_model = search.best_estimator_
         y_prob = best_model.predict_proba(X_test)[:, 1]
         y_pred = (y_prob >= 0.5).astype(int)
         f1 = f1_score(y_test, y_pred)
         ap = average_precision_score(y_test, y_prob)
-        report = classification_report(y_test, y_pred, digits = 4, target_names = ["Loss(0)", "Win(1)"])
+        fpr, tpr, _ = roc_curve(y_test, y_prob)
+        roc_auc = auc(fpr, tpr)
+        report = classification_report(y_test, y_pred, digits=4, target_names=["Loss(0)", "Win(1)"])
         cm = confusion_matrix(y_test, y_pred)
-        (out_reports / f"classification_report_{key}.txt").write_text(report)
-        json.dump({"best_params": search.best_params_, "f1": f1, "average_precision": ap},
-                open(out_reports / f"metrics_{key}.json", "w"), indent=2)
-        save_confusion_matrix(cm, ["Loss(0)", "Win(1)"], out_plots / f"cm_{key}.png")
-        save_pr_curve(y_test, y_prob, out_plots / f"pr_{key}.png")
-        save_roc_curve(y_test, y_prob, out_plots / f"roc_{key}.png")
-        print(f"Saved reports and plots for {key} -> {out_reports}, {out_plots}")
+
+        tag = f"{sport}_{key}"
+        (out_reports / f"classification_report_{tag}.txt").write_text(report)
+        json.dump(
+            {"sport": sport, "model": key, "best_params": search.best_params_,
+             "f1": f1, "average_precision": ap, "roc_auc": roc_auc},
+            open(out_reports / f"metrics_{tag}.json", "w"), indent=2, default=str,
+        )
+        save_confusion_matrix(cm, ["Loss(0)", "Win(1)"], out_plots / f"cm_{tag}.png")
+        save_pr_curve(y_test, y_prob, out_plots / f"pr_{tag}.png")
+        save_roc_curve(y_test, y_prob, out_plots / f"roc_{tag}.png")
+
+        model_path = out_models / f"{tag}.joblib"
+        joblib.dump({"pipeline": best_model, "feature_columns": list(X.columns), "sport": sport, "model": key}, model_path)
+        summary[key] = {"f1": f1, "average_precision": ap, "roc_auc": roc_auc}
+        print(f"Saved {tag}: F1={f1:.3f}  AP={ap:.3f}  AUC={roc_auc:.3f}  -> {model_path}")
+
+    json.dump(summary, open(out_reports / f"summary_{sport}.json", "w"), indent=2)
+    print(f"\nSummary for {sport.upper()}: {json.dumps(summary, indent=2)}")
 
 def main():
     parser = argparse.ArgumentParser(description="Train NBA/NFL outcome models with CV & tuning")
     parser.add_argument("--input", type=str, required = True, help="CSV with features + home_win target")
     parser.add_argument("--models", nargs="+", default=["lr", "rf", "xgb"], help = "Which models to run (lr rf xgb)")
-    parser.add_argument("--reports", type=str, default="reports", help = "Output directory for JSon/TXT reports")
+    parser.add_argument("--reports", type=str, default="reports", help="Output directory for JSON/TXT reports")
     parser.add_argument("--plots", type=str, default="plots", help="Output directory for plots")
+    parser.add_argument("--models_dir", type=str, default="models", help="Output directory for saved model pipelines")
     parser.add_argument("--cv", type=int, default=5, help="CV folds")
     parser.add_argument("--scoring", type=str, default="f1", help="sklearn scoring metric (e.g., f1, average_precision)")
     parser.add_argument("--n_iter", type=int, default=25, help="RandomizedSearch iterations (if applicable)")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed")
     args = parser.parse_args()
-    run(args.input, args.models, args.reports, args.plots, args.cv, args.scoring, args.n_iter, args.random_state)
+    run(args.input, args.models, args.reports, args.plots, args.models_dir,
+        args.cv, args.scoring, args.n_iter, args.random_state)
 
 if __name__ == "__main__":
     main()

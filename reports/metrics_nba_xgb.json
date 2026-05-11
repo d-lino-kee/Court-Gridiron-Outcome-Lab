@@ -1,0 +1,14 @@
+{
+  "sport": "nba",
+  "model": "xgb",
+  "best_params": {
+    "clf__subsample": 0.7,
+    "clf__reg_lambda": 1.0,
+    "clf__n_estimators": 200,
+    "clf__max_depth": 7,
+    "clf__learning_rate": 0.01
+  },
+  "f1": 0.7488855869242199,
+  "average_precision": 0.7972047529943882,
+  "roc_auc": 0.7218256543370106
+}

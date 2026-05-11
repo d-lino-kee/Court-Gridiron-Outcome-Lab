@@ -51,13 +51,16 @@ def main():
     if "home_win" not in df.columns:
         raise SystemExit("Input must include a 'home_win' column.")
 
-    plot_correlation(df, outdir / "correlation_heatmap.png")
+    stem = Path(args.input).stem.lower()
+    sport = "nfl" if "nfl" in stem else ("nba" if "nba" in stem else "data")
+
+    plot_correlation(df, outdir / f"correlation_heatmap_{sport}.png")
 
     for col in ["elo_diff", "vegas_spread", "home_rest", "away_rest"]:
         if col in df.columns:
-            plot_distribution_by_outcome(df, col, "home_win", outdir / f"dist_{col}_by_home_win.png")
+            plot_distribution_by_outcome(df, col, "home_win", outdir / f"dist_{sport}_{col}_by_home_win.png")
 
-    print(f"Saved EDA plots to {outdir.resolve()}")
+    print(f"Saved {sport.upper()} EDA plots to {outdir.resolve()}")
 
 if __name__ == "__main__":
     main()

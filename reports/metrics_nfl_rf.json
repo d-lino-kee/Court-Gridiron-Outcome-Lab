@@ -1,0 +1,14 @@
+{
+  "sport": "nfl",
+  "model": "rf",
+  "best_params": {
+    "clf__n_estimators": 400,
+    "clf__min_samples_split": 10,
+    "clf__max_features": "log2",
+    "clf__max_depth": 20,
+    "clf__class_weight": "balanced"
+  },
+  "f1": 0.7476635514018691,
+  "average_precision": 0.7837908891212386,
+  "roc_auc": 0.7832859140666442
+}

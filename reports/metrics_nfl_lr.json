@@ -1,0 +1,12 @@
+{
+  "sport": "nfl",
+  "model": "lr",
+  "best_params": {
+    "clf__C": 0.1,
+    "clf__class_weight": null,
+    "clf__penalty": "l2"
+  },
+  "f1": 0.7574626865671642,
+  "average_precision": 0.8336290541710037,
+  "roc_auc": 0.813666393403096
+}
